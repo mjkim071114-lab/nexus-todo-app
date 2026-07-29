@@ -68,10 +68,12 @@
             <i data-lucide="moon" id="theme-icon"></i>
           </button>
 
-          <div class="user-db-badge" id="btn-db-config">
-            <div class="status-indicator" id="db-status-dot"></div>
-            <span class="user-info-text" id="db-status-text">Firebase DB 연결</span>
+          <div id="auth-user-container">
+            <button class="btn-secondary" onclick="window.openAuthModal()" style="font-size:0.82rem; font-weight:700; background:var(--accent-primary); color:white; border-radius:9999px; padding:8px 16px;">
+              🔑 로그인 / 회원가입
+            </button>
           </div>
+
           <button class="btn-add-task" id="btn-open-task-modal"><i data-lucide="plus"></i><span>새 할 일</span></button>
         </div>
       </header>
@@ -131,6 +133,38 @@
     </main>
   </div>
 
+  <div class="modal-overlay" id="auth-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="auth-modal-title">🔐 NexusTask 회원 로그인</h3>
+        <button class="btn-icon" onclick="window.closeAuthModal()"><i data-lucide="x"></i></button>
+      </div>
+
+      <button class="btn-secondary" onclick="window.handleGoogleLogin()" style="width:100%; padding:12px; background:#ffffff; color:#333; font-weight:700; display:flex; align-items:center; justify-content:center; gap:10px; border:1px solid #ccc; cursor:pointer;">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:18px; height:18px;">
+        <span>Google 계정으로 1초 로그인</span>
+      </button>
+
+      <div style="text-align:center; color:var(--text-muted); font-size:0.75rem; margin:8px 0;">또는 이메일 로그인</div>
+
+      <form id="auth-form">
+        <div class="form-group">
+          <label>이메일 주소</label>
+          <input type="email" class="form-input" id="auth-email" placeholder="example@email.com" required>
+        </div>
+        <div class="form-group">
+          <label>비밀번호</label>
+          <input type="password" class="form-input" id="auth-password" placeholder="6자리 이상 비밀번호" required>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:12px;">
+          <button type="button" class="btn-secondary" onclick="window.handleEmailSignUp()" style="flex:1;">회원가입</button>
+          <button type="submit" class="btn-primary" style="flex:1;">로그인</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="task-modal">
     <div class="modal-card">
       <div class="modal-header"><h3>새 할 일 작성</h3><button class="btn-icon" id="btn-close-task-modal"><i data-lucide="x"></i></button></div>
@@ -171,14 +205,6 @@
     </div>
   </div>
 
-  <div class="modal-overlay" id="firebase-modal">
-    <div class="modal-card">
-      <div class="modal-header"><h3>🔥 Firebase DB 설정</h3><button class="btn-icon" id="btn-close-db-modal"><i data-lucide="x"></i></button></div>
-      <div class="form-group"><label>API Key</label><input type="text" class="form-input" id="fb-apiKey"></div>
-      <div class="form-group"><label>Project ID</label><input type="text" class="form-input" id="fb-projectId"></div>
-      <div class="modal-footer"><button type="button" class="btn-primary" id="btn-save-db-config">적용</button></div>
-    </div>
-  </div>
   <script type="module" src="app.js"></script>
 </body>
 </html>

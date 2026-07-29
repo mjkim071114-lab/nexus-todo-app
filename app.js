@@ -1,5 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDE_RbZENWOxhoU3vzdIYlTgglhbHvQA1o",
@@ -25,22 +26,66 @@ const DEFAULT_CATEGORIES = [
   { id: 'health', name: '🏋️ 운동 & 건강', color: '#f59e0b' }
 ];
 
-const INITIAL_DEMO_TASKS = [
-  { id: '1', title: 'NexusTask Pro 디자인 및 뷰 검토', category: 'work', priority: 'urgent', status: 'in-progress', dueDate: getTodayStr(), createdAt: Date.now() - 3600000 },
-  { id: '2', title: 'Firebase Cloud DB 실시간 동기화 확인', category: 'work', priority: 'high', status: 'todo', dueDate: getTodayStr(), createdAt: Date.now() - 7200000 },
-  { id: '3', title: '헬스장 어깨 & 가슴 운동', category: 'health', priority: 'medium', status: 'completed', dueDate: getTodayStr(), createdAt: Date.now() - 86400000 },
-  { id: '4', title: 'React / JS 프론트엔드 서적 읽기', category: 'study', priority: 'low', status: 'todo', dueDate: '2026-08-05', createdAt: Date.now() - 10000000 }
-];
-
 const STATE = {
-  tasks: JSON.parse(localStorage.getItem('nexustask_tasks')) || INITIAL_DEMO_TASKS,
+  currentUser: null,
+  tasks: [],
   categories: JSON.parse(localStorage.getItem('nexustask_categories')) || DEFAULT_CATEGORIES,
   activeFilter: 'all',
   activeView: 'list',
   searchQuery: '',
   theme: 'dark',
   pomodoro: { timerId: null, timeLeft: 25 * 60, isRunning: false },
-  firebase: { isConfigured: true, db: null }
+  firebase: { db: null, auth: null }
+};
+
+window.openAuthModal = function() {
+  document.getElementById('auth-modal').classList.add('active');
+};
+window.closeAuthModal = function() {
+  document.getElementById('auth-modal').classList.remove('active');
+};
+
+window.handleGoogleLogin = function() {
+  if (!STATE.firebase.auth) return;
+  const provider = new GoogleAuthProvider();
+  signInWithPopup(STATE.firebase.auth, provider)
+    .then((result) => {
+      window.closeAuthModal();
+    })
+    .catch((err) => {
+      alert('Google 로그인: Firebase 콘솔에서 Google 인증 기능을 켜주세요!');
+    });
+};
+
+window.handleEmailSignUp = function() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value.trim();
+
+  if (!email || !password) {
+    alert('이메일과 비밀번호를 입력해주세요.');
+    return;
+  }
+  if (password.length < 6) {
+    alert('비밀번호는 6자리 이상이어야 합니다.');
+    return;
+  }
+
+  createUserWithEmailAndPassword(STATE.firebase.auth, email, password)
+    .then(() => {
+      alert('🎉 회원가입 성공!');
+      window.closeAuthModal();
+    })
+    .catch((err) => {
+      alert('회원가입 실패: ' + err.message);
+    });
+};
+
+window.handleLogout = function() {
+  if (STATE.firebase.auth) {
+    signOut(STATE.firebase.auth).then(() => {
+      alert('로그아웃 되었습니다.');
+    });
+  }
 };
 
 window.switchView = function(viewName) {
@@ -97,62 +142,91 @@ window.closeCategoryModal = function() {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-  saveLocalTasks();
-  saveLocalCategories();
-  initAutoFirebase();
+  initFirebase();
   bindClickEvents();
-  renderAllViews();
   lucide.createIcons();
 });
 
-function saveLocalTasks() {
-  localStorage.setItem('nexustask_tasks', JSON.stringify(STATE.tasks));
-}
-function saveLocalCategories() {
-  localStorage.setItem('nexustask_categories', JSON.stringify(STATE.categories));
-}
-
-function initAutoFirebase() {
+function initFirebase() {
   try {
     const app = initializeApp(firebaseConfig);
     STATE.firebase.db = getFirestore(app);
-    STATE.firebase.isConfigured = true;
-    updateDbStatusUI(true, '🟢 클라우드 DB 자동 연결됨');
-    subscribeFirebaseTasks();
+    STATE.firebase.auth = getAuth(app);
+
+    onAuthStateChanged(STATE.firebase.auth, (user) => {
+      STATE.currentUser = user;
+      updateAuthUI(user);
+      if (user) {
+        subscribeFirebaseTasks(user.uid);
+      } else {
+        STATE.tasks = [];
+        renderAllViews();
+      }
+    });
   } catch (e) {
-    console.warn('Firebase init:', e);
-    updateDbStatusUI(false, '게스트 로컬 저장');
+    console.error('Firebase init error:', e);
   }
 }
 
-function subscribeFirebaseTasks() {
+function updateAuthUI(user) {
+  const container = document.getElementById('auth-user-container');
+  if (!container) return;
+
+  if (user) {
+    const displayName = user.displayName || user.email.split('@')[0];
+    const photoURL = user.photoURL || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + user.uid;
+
+    container.innerHTML = `
+      <div style="display:flex; align-items:center; gap:10px; background:var(--bg-secondary); border:1px solid var(--glass-border); padding:4px 12px; border-radius:9999px;">
+        <img src="${photoURL}" style="width:28px; height:28px; border-radius:50%;">
+        <span style="font-size:0.82rem; font-weight:700; color:var(--text-primary);">${displayName}님</span>
+        <button onclick="window.handleLogout()" style="background:transparent; border:none; color:var(--accent-danger); cursor:pointer; font-size:0.75rem; font-weight:700; margin-left:4px;">로그아웃</button>
+      </div>
+    `;
+  } else {
+    container.innerHTML = `
+      <button class="btn-secondary" onclick="window.openAuthModal()" style="font-size:0.82rem; font-weight:700; background:var(--accent-primary); color:white; border-radius:9999px; padding:8px 16px;">
+        🔑 로그인 / 회원가입
+      </button>
+    `;
+  }
+}
+
+function subscribeFirebaseTasks(uid) {
   if (!STATE.firebase.db) return;
   try {
-    const q = query(collection(STATE.firebase.db, 'tasks'));
+    const q = query(collection(STATE.firebase.db, 'tasks'), where('userId', '==', uid));
     onSnapshot(q, (snapshot) => {
       const remoteTasks = [];
       snapshot.forEach((docSnap) => {
         remoteTasks.push({ id: docSnap.id, ...docSnap.data() });
       });
-      if (remoteTasks.length > 0) {
-        STATE.tasks = remoteTasks;
-        saveLocalTasks();
-        renderAllViews();
-      }
+      STATE.tasks = remoteTasks;
+      renderAllViews();
     });
   } catch (err) {
     console.error(err);
   }
 }
 
-function updateDbStatusUI(isOnline, text) {
-  const dot = document.getElementById('db-status-dot');
-  const label = document.getElementById('db-status-text');
-  if (dot) dot.style.background = isOnline ? '#10b981' : '#f59e0b';
-  if (label) label.textContent = text;
-}
-
 function bindClickEvents() {
+  const authForm = document.getElementById('auth-form');
+  if (authForm) {
+    authForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = document.getElementById('auth-email').value.trim();
+      const password = document.getElementById('auth-password').value.trim();
+
+      signInWithEmailAndPassword(STATE.firebase.auth, email, password)
+        .then(() => {
+          window.closeAuthModal();
+        })
+        .catch((err) => {
+          alert('로그인 실패: ' + err.message);
+        });
+    });
+  }
+
   const searchInput = document.getElementById('search-input');
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
@@ -163,6 +237,11 @@ function bindClickEvents() {
 
   const btnOpenModal = document.getElementById('btn-open-task-modal');
   if (btnOpenModal) btnOpenModal.addEventListener('click', () => {
+    if (!STATE.currentUser) {
+      alert('로그인이 필요한 서비스입니다! 먼저 로그인해 주세요.');
+      window.openAuthModal();
+      return;
+    }
     populateCategoryOptions();
     const dueDateInput = document.getElementById('input-task-due');
     if (dueDateInput) dueDateInput.value = getTodayStr();
@@ -179,12 +258,15 @@ function bindClickEvents() {
   if (taskForm) {
     taskForm.addEventListener('submit', (e) => {
       e.preventDefault();
+      if (!STATE.currentUser) return;
+
       const title = document.getElementById('input-task-title').value;
       const category = document.getElementById('input-task-category').value;
       const priority = document.getElementById('input-task-priority').value;
       const dueDate = document.getElementById('input-task-due').value || getTodayStr();
 
       const newTask = {
+        userId: STATE.currentUser.uid,
         title,
         category,
         priority,
@@ -193,13 +275,7 @@ function bindClickEvents() {
         createdAt: Date.now()
       };
 
-      if (STATE.firebase.isConfigured && STATE.firebase.db) {
-        addDoc(collection(STATE.firebase.db, 'tasks'), newTask);
-      }
-
-      STATE.tasks.unshift({ id: String(Date.now()), ...newTask });
-      saveLocalTasks();
-      renderAllViews();
+      addDoc(collection(STATE.firebase.db, 'tasks'), newTask);
       document.getElementById('task-modal').classList.remove('active');
     });
   }
@@ -214,7 +290,7 @@ function bindClickEvents() {
       if (name) {
         const id = `cat-${Date.now()}`;
         STATE.categories.push({ id, name, color });
-        saveLocalCategories();
+        localStorage.setItem('nexustask_categories', JSON.stringify(STATE.categories));
         renderSidebarCategories();
         populateCategoryOptions();
         window.closeCategoryModal();
@@ -301,12 +377,24 @@ function updateBadges() {
 function renderListView(tasks) {
   const container = document.getElementById('task-list-container');
   if (!container) return;
+
+  if (!STATE.currentUser) {
+    container.innerHTML = `
+      <div style="padding:64px 20px; text-align:center;">
+        <i data-lucide="lock" style="width:56px; height:56px; color:var(--accent-primary); margin-bottom:16px;"></i>
+        <h3 style="font-size:1.3rem; font-weight:800; color:var(--text-primary);">로그인이 필요합니다</h3>
+        <p style="font-size:0.9rem; color:var(--text-muted); margin:8px 0 20px;">나만의 전용 클라우드 투두를 이용하려면 로그인해 주세요.</p>
+        <button class="btn-primary" onclick="window.openAuthModal()">🔑 로그인 / 회원가입하기</button>
+      </div>
+    `;
+    return;
+  }
   
   if (tasks.length === 0) {
     container.innerHTML = `
       <div style="padding:48px 20px; text-align:center; color:var(--text-muted);">
         <i data-lucide="check-circle-2" style="width:48px; height:48px; opacity:0.4; margin-bottom:12px;"></i>
-        <p style="font-weight:700; color:var(--text-primary);">해당 항목에 등록된 할 일이 없습니다.</p>
+        <p style="font-weight:700; color:var(--text-primary);">등록된 할 일이 없습니다.</p>
         <p style="font-size:0.85rem; margin-top:4px;">'+ 새할일' 버튼을 눌러 추가해 보세요!</p>
       </div>
     `;
@@ -344,6 +432,8 @@ function renderKanbanView(tasks) {
   };
   if (!cols.todo) return;
   Object.values(cols).forEach(c => c.innerHTML = '');
+
+  if (!STATE.currentUser) return;
 
   const counts = { todo: 0, 'in-progress': 0, completed: 0 };
 
@@ -397,13 +487,11 @@ function renderKanbanView(tasks) {
 
 window.changeStatus = function(id, newStatus) {
   const task = STATE.tasks.find(t => t.id === id);
-  if (task) {
-    task.status = newStatus;
-    saveLocalTasks();
+  if (task && STATE.firebase.db) {
+    updateDoc(doc(STATE.firebase.db, 'tasks', id), { status: newStatus });
     if (newStatus === 'completed') {
       confetti({ particleCount: 60, spread: 60, origin: { y: 0.8 } });
     }
-    renderAllViews();
   }
 };
 
@@ -461,20 +549,19 @@ function updateStats() {
 
 window.toggleTask = function(id) {
   const task = STATE.tasks.find(t => t.id === id);
-  if (task) {
-    task.status = task.status === 'completed' ? 'todo' : 'completed';
-    saveLocalTasks();
-    if (task.status === 'completed') {
+  if (task && STATE.firebase.db) {
+    const nextStatus = task.status === 'completed' ? 'todo' : 'completed';
+    updateDoc(doc(STATE.firebase.db, 'tasks', id), { status: nextStatus });
+    if (nextStatus === 'completed') {
       confetti({ particleCount: 60, spread: 60, origin: { y: 0.8 } });
     }
-    renderAllViews();
   }
 };
 
 window.deleteTask = function(id) {
-  STATE.tasks = STATE.tasks.filter(t => t.id !== id);
-  saveLocalTasks();
-  renderAllViews();
+  if (STATE.firebase.db) {
+    deleteDoc(doc(STATE.firebase.db, 'tasks', id));
+  }
 };
 
 function togglePomodoro() {
