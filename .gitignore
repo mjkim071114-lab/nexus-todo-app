@@ -1,0 +1,25 @@
+# 1. 보안 및 비밀 키 (API Key, 개인 환경변수)
+.env
+.env.local
+.env.*.local
+*.pem
+config.json
+
+# 2. 외부 라이브러리 및 빌드 생성 파일 (용량이 큼)
+node_modules/
+dist/
+build/
+.cache/
+
+# 3. 운영체제(OS) 및 에디터 자동 생성 파일
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# 4. 디버그 및 로그 파일
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
