@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexusTask Pro - 스마트 파워 Todo & 생산성 클라우드</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+  <div id="app-container">
+    <sidebar>
+      <div class="brand">
+        <div class="brand-icon"><i data-lucide="check-check"></i></div>
+        <div class="brand-text">
+          <h1>NexusTask Pro</h1>
+          <span>Cloud Todo & Workspace</span>
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="section-title">기본 목록</div>
+        <div class="nav-item active" data-filter-cat="all">
+          <div class="nav-item-left"><i data-lucide="inbox"></i><span>전체 할 일</span></div>
+          <span class="badge" id="badge-all">0</span>
+        </div>
+        <div class="nav-item" data-filter-cat="today">
+          <div class="nav-item-left"><i data-lucide="calendar-days"></i><span>오늘 할 일</span></div>
+          <span class="badge" id="badge-today">0</span>
+        </div>
+        <div class="nav-item" data-filter-cat="important">
+          <div class="nav-item-left"><i data-lucide="star"></i><span>중요할 일</span></div>
+          <span class="badge" id="badge-important">0</span>
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="section-title">카테고리</div>
+        <div class="nav-item" data-filter-cat="work">
+          <div class="nav-item-left"><span class="cat-dot" style="background: #6366f1;"></span><span>💼 업무</span></div>
+          <span class="badge" id="badge-work">0</span>
+        </div>
+        <div class="nav-item" data-filter-cat="personal">
+          <div class="nav-item-left"><span class="cat-dot" style="background: #10b981;"></span><span>👤 개인</span></div>
+          <span class="badge" id="badge-personal">0</span>
+        </div>
+        <div class="nav-item" data-filter-cat="study">
+          <div class="nav-item-left"><span class="cat-dot" style="background: #8b5cf6;"></span><span>📚 공부</span></div>
+          <span class="badge" id="badge-study">0</span>
+        </div>
+        <div class="nav-item" data-filter-cat="health">
+          <div class="nav-item-left"><span class="cat-dot" style="background: #f59e0b;"></span><span>🏋️ 운동</span></div>
+          <span class="badge" id="badge-health">0</span>
+        </div>
+      </div>
+      <div class="pomodoro-widget">
+        <div class="pomo-header"><span>⏱️ 포모도로 타이머</span><span id="pomo-mode-tag">집중 시간</span></div>
+        <div class="pomo-display" id="pomo-time-display">25:00</div>
+        <div class="pomo-controls">
+          <button class="btn-pomo" id="btn-pomo-start"><i data-lucide="play" id="pomo-icon"></i><span id="pomo-btn-label">시작</span></button>
+          <button class="btn-pomo secondary" id="btn-pomo-reset"><i data-lucide="rotate-ccw"></i></button>
+        </div>
+      </div>
+    </sidebar>
+    <main>
+      <header>
+        <div class="header-search">
+          <i data-lucide="search" style="color: var(--text-muted);"></i>
+          <input type="text" id="search-input" placeholder="검색...">
+        </div>
+        <div class="header-actions">
+          <div class="view-tabs">
+            <button class="view-tab active" data-view="list"><i data-lucide="list-todo"></i><span>리스트</span></button>
+            <button class="view-tab" data-view="kanban"><i data-lucide="kanban"></i><span>칸반</span></button>
+            <button class="view-tab" data-view="matrix"><i data-lucide="grid"></i><span>매트릭스</span></button>
+            <button class="view-tab" data-view="calendar"><i data-lucide="calendar"></i><span>달력</span></button>
+            <button class="view-tab" data-view="analytics"><i data-lucide="bar-chart-3"></i><span>통계</span></button>
+          </div>
+          <button class="btn-icon" id="btn-theme-toggle"><i data-lucide="moon" id="theme-icon"></i></button>
+          <div class="user-db-badge" id="btn-db-config">
+            <div class="status-indicator" id="db-status-dot"></div>
+            <span class="user-info-text" id="db-status-text">Firebase DB 연결</span>
+          </div>
+          <button class="btn-add-task" id="btn-open-task-modal"><i data-lucide="plus"></i><span>새 할 일</span></button>
+        </div>
+      </header>
+      <div class="views-container">
+        <div class="view-page active" id="view-list">
+          <div class="view-header">
+            <div class="view-title"><h2 id="current-category-title">전체 할 일</h2><p>목표를 한눈에 관리하세요.</p></div>
+            <div class="sort-filter-bar">
+              <select class="select-input" id="sort-select">
+                <option value="created-desc">최신순</option>
+                <option value="due-asc">마감일순</option>
+                <option value="priority-desc">우선순위순</option>
+              </select>
+              <select class="select-input" id="status-filter-select">
+                <option value="all">전체</option>
+                <option value="pending">미완료</option>
+                <option value="completed">완료</option>
+              </select>
+            </div>
+          </div>
+          <div class="task-list" id="task-list-container"></div>
+        </div>
+        <div class="view-page" id="view-kanban">
+          <div class="kanban-board">
+            <div class="kanban-col" data-status="todo"><div class="kanban-col-header"><span>대기 중</span><span class="badge" id="kanban-count-todo">0</span></div><div class="kanban-cards" id="kanban-cards-todo"></div></div>
+            <div class="kanban-col" data-status="in-progress"><div class="kanban-col-header"><span>진행 중</span><span class="badge" id="kanban-count-in-progress">0</span></div><div class="kanban-cards" id="kanban-cards-in-progress"></div></div>
+            <div class="kanban-col" data-status="completed"><div class="kanban-col-header"><span>완료됨</span><span class="badge" id="kanban-count-completed">0</span></div><div class="kanban-cards" id="kanban-cards-completed"></div></div>
+          </div>
+        </div>
+        <div class="view-page" id="view-matrix">
+          <div class="matrix-grid">
+            <div class="matrix-quadrant quad-q1"><div class="quad-header"><span>🔥 Q1. 긴급 & 중요</span><span class="badge" id="quad-count-q1">0</span></div><div class="task-list" id="matrix-q1-list"></div></div>
+            <div class="matrix-quadrant quad-q2"><div class="quad-header"><span>🎯 Q2. 안 긴급 & 중요</span><span class="badge" id="quad-count-q2">0</span></div><div class="task-list" id="matrix-q2-list"></div></div>
+            <div class="matrix-quadrant quad-q3"><div class="quad-header"><span>⚡ Q3. 긴급 & 안 중요</span><span class="badge" id="quad-count-q3">0</span></div><div class="task-list" id="matrix-q3-list"></div></div>
+            <div class="matrix-quadrant quad-q4"><div class="quad-header"><span>🌱 Q4. 안 긴급 & 안 중요</span><span class="badge" id="quad-count-q4">0</span></div><div class="task-list" id="matrix-q4-list"></div></div>
+          </div>
+        </div>
+        <div class="view-page" id="view-calendar">
+          <div class="calendar-container">
+            <div class="calendar-header">
+              <h2 id="calendar-month-year">2026년 7월</h2>
+              <div>
+                <button class="btn-icon" id="cal-prev-month"><i data-lucide="chevron-left"></i></button>
+                <button class="btn-secondary" id="cal-today">오늘</button>
+                <button class="btn-icon" id="cal-next-month"><i data-lucide="chevron-right"></i></button>
+              </div>
+            </div>
+            <div class="calendar-grid"><div id="calendar-days-container" style="display: contents;"></div></div>
+          </div>
+        </div>
+        <div class="view-page" id="view-analytics">
+          <div class="stats-cards">
+            <div class="stat-card"><div class="stat-info"><h4>총 완료</h4><div class="stat-value" id="stat-total-completed">0 / 0</div></div></div>
+            <div class="stat-card"><div class="stat-info"><h4>완료율</h4><div class="stat-value" id="stat-completion-rate">0%</div></div></div>
+          </div>
+          <div class="charts-row">
+            <div class="chart-box"><h3>달성 트렌드</h3><canvas id="chart-weekly-trend" height="200"></canvas></div>
+            <div class="chart-box"><h3>카테고리 비중</h3><canvas id="chart-category-donut" height="200"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div class="modal-overlay" id="task-modal">
+    <div class="modal-card">
+      <div class="modal-header"><h3>새 할 일 작성</h3><button class="btn-icon" id="btn-close-task-modal"><i data-lucide="x"></i></button></div>
+      <form id="task-form">
+        <input type="hidden" id="task-id">
+        <div class="form-group"><label>제목 *</label><input type="text" class="form-input" id="input-task-title" required></div>
+        <div class="form-group"><label>설명</label><textarea class="form-textarea" id="input-task-desc"></textarea></div>
+        <div class="form-row">
+          <div class="form-group"><label>카테고리</label><select class="form-select" id="input-task-category"><option value="work">💼 업무</option><option value="personal">👤 개인</option><option value="study">📚 공부</option><option value="health">🏋️ 운동</option></select></div>
+          <div class="form-group"><label>우선순위</label><select class="form-select" id="input-task-priority"><option value="urgent">🔴 긴급</option><option value="high" selected>🟧 높음</option><option value="medium">🟦 보통</option><option value="low">🟩 낮음</option></select></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>마감일</label><input type="date" class="form-input" id="input-task-due"></div>
+          <div class="form-group"><label>태그</label><input type="text" class="form-input" id="input-task-tags"></div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn-secondary" id="btn-cancel-task">취소</button><button type="submit" class="btn-primary">저장</button></div>
+      </form>
+    </div>
+  </div>
+  <div class="modal-overlay" id="firebase-modal">
+    <div class="modal-card">
+      <div class="modal-header"><h3>🔥 Firebase DB 설정</h3><button class="btn-icon" id="btn-close-db-modal"><i data-lucide="x"></i></button></div>
+      <div class="form-group"><label>API Key</label><input type="text" class="form-input" id="fb-apiKey"></div>
+      <div class="form-group"><label>Project ID</label><input type="text" class="form-input" id="fb-projectId"></div>
+      <div class="modal-footer"><button type="button" class="btn-primary" id="btn-save-db-config">적용</button></div>
+    </div>
+  </div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
